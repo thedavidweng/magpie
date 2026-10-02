@@ -1,0 +1,39 @@
+{
+  "summary": "网关「最近调用」状态行里的耗时与 TTFT、供应商端点测试结果、模型 chip 的悬停提示，以及右键单个模型测试后的状态提示，都改用 ledTook() 输出：不足 1 秒显示毫秒，1 秒以上显示秒，中文单位由 ms 变成毫秒/秒。用量页的 TTFT 只是换成同一个函数，输出与原来一致。",
+  "scenes": [
+    {
+      "title": "网关最近调用的耗时",
+      "shots": [
+        {
+          "file": "01-gateway-recent-calls.png",
+          "caption": "网关「最近调用」：每条调用状态行里的耗时",
+          "width": 2560
+        }
+      ]
+    },
+    {
+      "title": "供应商测试结果的耗时",
+      "shots": [
+        {
+          "file": "02-provider-detail.png",
+          "caption": "DeepSeek 详情：端点与模型 chip 所在的对话框",
+          "width": 2560
+        },
+        {
+          "file": "03-provider-test-result.png",
+          "caption": "测试结果里显示的耗时",
+          "width": 2560
+        }
+      ]
+    }
+  ],
+  "video": "preview.mp4",
+  "poster": "poster.png",
+  "errors": [],
+  "leak": false,
+  "skipped": null,
+  "mismatch": "",
+  "unseen": "沙盒里三条网关调用都不到 1 秒，只能看到「毫秒」这一档，「秒」这一档要更慢的请求才会出现；这几条调用也没有 TTFT，状态行里的 TTFT 部分看不到。模型 chip 的提示是原生 title，悬停截图里不会显示；右键单个模型后的状态提示是一闪而过的 toast，也不容易定格。",
+  "interactive": true,
+  "pages": 2
+}
