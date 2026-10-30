@@ -39,7 +39,7 @@ func accountsCmd(args []string) error {
 			return "codex", nil
 		case "gemini", "gemini-cli":
 			return "gemini", nil
-		case "antigravity", "ag":
+		case "antigravity", "ag", "agy":
 			return "antigravity", nil
 		case "zed":
 			return "zed", nil

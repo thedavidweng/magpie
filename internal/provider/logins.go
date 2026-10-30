@@ -1177,7 +1177,7 @@ func isAntigravityClientLogin(user string) bool {
 }
 
 func switchLogin(agent, user string) error {
-	if pp, ok := pluginOfAgent(agent); ok {
+	if pp, ok := pluginOfAgent(agent); ok && !SwitchOnly(agent) {
 		return switchPluginLogin(pp, user)
 	}
 	switch agent {
