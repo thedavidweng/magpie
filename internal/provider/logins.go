@@ -149,7 +149,7 @@ func loginsLookDue() bool {
 }
 
 // switchable agents: those whose sign-in magpie can save and put back.
-var loginAgents = []string{"claude", "codex"}
+var loginAgents = []string{"claude", "codex", "antigravity", "factory"}
 
 // loginID is the account's stable id (#905): the one saved with it, or a
 // stand-in made of its name until the logins are next written — set then,
@@ -635,9 +635,18 @@ func savedButSignedOut() []Exclusion {
 		if saved[a] > 1 {
 			n = fmt.Sprintf("%d accounts are", saved[a])
 		}
-		_, _, err := readCodexLogin(codexHome(), false)
-		out = append(out, Exclusion{Agent: a, SignedOut: true, Users: users[a], Retry: codexKeychainUnread(err),
-			Why: fmt.Sprintf("%s saved in magpie, and they are only offered beside the account Codex is signed in to. %s", n, codexSignedOutWhy())})
+		switch a {
+		case "codex":
+			_, _, err := readCodexLogin(codexHome(), false)
+			out = append(out, Exclusion{Agent: a, SignedOut: true, Users: users[a], Retry: codexKeychainUnread(err),
+				Why: fmt.Sprintf("%s saved in magpie, and they are only offered beside the account Codex is signed in to. %s", n, codexSignedOutWhy())})
+		case "antigravity":
+			out = append(out, Exclusion{Agent: a, SignedOut: true, Users: users[a],
+				Why: fmt.Sprintf("%s saved in magpie, and they are only offered beside the account Antigravity is signed in to. Sign in to Antigravity.", n)})
+		case "factory":
+			out = append(out, Exclusion{Agent: a, SignedOut: true, Users: users[a],
+				Why: fmt.Sprintf("%s saved in magpie, and they are only offered beside the account Factory is signed in to. Sign in to Factory.", n)})
+		}
 	}
 	return out
 }
@@ -699,6 +708,10 @@ func liveLogin(agent string) (savedLogin, bool) {
 			return savedLogin{}, false
 		}
 		return claudeSignInOwner(readLogins(), l), true
+	case "antigravity":
+		return antigravityLiveLogin()
+	case "factory":
+		return factoryLiveLogin()
 	}
 	return savedLogin{}, false
 }
@@ -1151,6 +1164,18 @@ func SwitchLogin(agent, user string) error {
 	return nil
 }
 
+func isAntigravityClientLogin(user string) bool {
+	for _, l := range readLogins() {
+		if l.Agent == "antigravity" && strings.EqualFold(l.User, user) {
+			var p antigravityPayload
+			if json.Unmarshal(l.Auth, &p) == nil && (p.Token.AccessToken != "" || p.Token.RefreshToken != "") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func switchLogin(agent, user string) error {
 	if pp, ok := pluginOfAgent(agent); ok {
 		return switchPluginLogin(pp, user)
@@ -1160,8 +1185,12 @@ func switchLogin(agent, user string) error {
 		return switchCopilotLogin(user)
 	case ChatGPTAPIID:
 		return switchSIWCLogin(user)
-	case "gemini", "antigravity":
+	case "gemini":
 		return switchGoogleLogin(agent, user)
+	case "antigravity":
+		if !SwitchOnly("antigravity") && !isAntigravityClientLogin(user) {
+			return switchGoogleLogin(agent, user)
+		}
 	}
 	from, err := switchSavedLogin(agent, user)
 	if err == nil && agent == "codex" && from != "" {
@@ -1267,6 +1296,10 @@ func switchSavedLogin(agent, user string) (from string, _ error) {
 			forgetClaudeDir(want.User)
 			claudeHandedOver(want.User)
 		}
+	case "antigravity":
+		err = saveAntigravityLogin(want)
+	case "factory":
+		err = saveFactoryLogin(want)
 	default:
 		err = fmt.Errorf("%s accounts can't be switched", agent)
 	}

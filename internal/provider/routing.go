@@ -126,7 +126,7 @@ func SetSwitchOnly(id string, on bool) error {
 	if err != nil {
 		return err
 	}
-	if p.Account == nil || p.Account.Agent != p.ID || p.ID != "codex" && p.ID != "claude" {
+	if p.Account == nil || p.Account.Agent != p.ID || (p.ID != "codex" && p.ID != "claude" && p.ID != "antigravity" && p.ID != "factory") {
 		return fmt.Errorf("magpie doesn't route %s's own requests for account failover", p.Name)
 	}
 	p.SwitchOnly = on
