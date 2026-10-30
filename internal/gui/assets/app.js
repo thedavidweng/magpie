@@ -1373,7 +1373,7 @@ function connectLine(a, kind) {
   if (!a.wired) {
     const src = a.source || "";
     const sw = switchEntry(a);
-    if (kindOf(a) === "agy") say(t("Not connected · once connected, start it with magpie's command"));
+    if (kindOf(a) === "agy" && !sw?.p.switchOnly) say(t("Not connected · once connected, start it with magpie's command"));
     // not connected, yet through magpie for account failover (#1385): it
     // read as Codex on its own while magpie served every request, so the
     // line says why, and its account switch (below) turns it off
@@ -1589,9 +1589,19 @@ function connectRow(a, row, who, { fields, extras, fieldBtn, sw, kind }) {
 // account rows do; the window's, the panel reads no provider list
 let accountSwitched = null;
 
+const SWITCH_AGENT_TO_PROVIDER = {
+  claude: "claude",
+  codex: "codex",
+  agy: "antigravity",
+  antigravity: "antigravity",
+  droid: "factory",
+  factory: "factory",
+};
+
 function switchable(a) {
-  if (a.wired || mode === "panel" || (a.id !== "claude" && a.id !== "codex")) return null;
-  const p = (providers || providersEarly?.got)?.providers?.find((x) => x.id === a.id && x.account?.agent === a.id);
+  const targetProviderID = SWITCH_AGENT_TO_PROVIDER[kindOf(a)] || SWITCH_AGENT_TO_PROVIDER[a.id];
+  if (a.wired || mode === "panel" || !targetProviderID) return null;
+  const p = (providers || providersEarly?.got)?.providers?.find((x) => x.id === targetProviderID && x.account?.agent === targetProviderID);
   return p && loginsInOrder(p.account, p)[0]?.user ? p : null;
 }
 
@@ -1614,8 +1624,11 @@ function switchEntry(a) {
     setTimeout(() => b.classList.remove("done"), 5000 - ago);
   }
   b.append(svg(CHEV, 10, 1.6));
-  const opts = ls.map((l) => ({ v: "u:" + l.user, name: l.user, literalName: true, note: l.lapsed ? "Sign-in required" : accountPlan({ agent: a.id, plan: l.plan }) }));
-  const on = cx ? t("magpie only switches {agent}'s sign-in; its requests go straight to OpenAI", ag) : t("magpie serves no requests on these accounts");
+  const opts = ls.map((l) => ({ v: "u:" + l.user, name: l.user, literalName: true, note: l.lapsed ? "Sign-in required" : accountPlan({ agent: p.account?.agent || a.id, plan: l.plan }) }));
+  const on = cx ? t("magpie only switches {agent}'s sign-in; its requests go straight to OpenAI", ag)
+    : p.id === "antigravity" ? t("magpie only switches {agent}'s sign-in; its requests go straight to Google", ag)
+    : p.id === "factory" ? t("magpie only switches {agent}'s sign-in; its requests go straight to Factory", ag)
+    : t("magpie serves no requests on these accounts");
   // the Only switch setting, where the accounts page offers it
   if (!cx || ls.filter((l) => !l.lapsed && (l.active || l.on)).length > 1) opts.push({ v: "only", name: t("Only switch {agent}'s sign-in", ag), literalName: true, ticked: !!p.switchOnly, note: on });
   opts.push({ v: "manage", name: "Manage accounts…", note: "" });
@@ -1626,7 +1639,7 @@ function switchEntry(a) {
       const l = ls.find((x) => "u:" + x.user === v);
       if (v === "only") accountAction("provider/switchonly", { id: p.id, switchOnly: !p.switchOnly }, !p.switchOnly ? on
         : cx ? t("{agent}'s requests go through magpie to fail over to your other accounts again", ag) : t("magpie serves requests on these accounts again"));
-      else if (v === "manage" || l?.lapsed) openProvider(a.id);
+      else if (v === "manage" || l?.lapsed) openProvider(p.id);
       else if (l && l.user !== cur) switchAccountTo(a, p, l.user);
     }, "Switch accounts only", "sess-menu", "right");
   };
@@ -1636,7 +1649,7 @@ function switchEntry(a) {
 async function switchAccountTo(a, p, user) {
   const said = t("{agent} is now signed in as {user}. New {agent} sessions use this account; one already open keeps its account until it is started again.", { agent: a.name, user });
   // kept signed in to one of the user's choosing (#524): that choice moves
-  if (!await (keptLogin(p) ? accountAction("provider/keeplogin", { id: p.id, keepLogin: true, keepLoginAs: user }, said) : accountAction("login/switch", { agent: a.id, user }, said))) return;
+  if (!await (keptLogin(p) ? accountAction("provider/keeplogin", { id: p.id, keepLogin: true, keepLoginAs: user }, said) : accountAction("login/switch", { agent: p.account?.agent || a.id, user }, said))) return;
   accountSwitched = { agent: a.id, user, at: performance.now() };
   renderAgents();
 }
@@ -13409,9 +13422,11 @@ function renderAccounts(a, p) {
     list.append(box);
   }
   const cx = a.agent === "codex", ag = { agent: a.agentName };
-  if (p && (cx && several || a.agent === "claude")) {
+  if (p && (cx && several || a.agent === "claude" || a.agent === "antigravity" || a.agent === "factory")) {
     const [only, cb] = tick(t("Only switch {agent}'s sign-in", ag), p.switchOnly);
     const [tip, on, off] = cx ? [t("magpie signs {agent} in to the next account with room when the one it is on is used up, and back once that has room again, by writing {agent}'s own sign-in; {agent}'s requests go straight to OpenAI, never through magpie. A {agent} app or session already open stays on its account until it is opened again. Connected to magpie, {agent}'s requests go through it as before.", ag), t("magpie only switches {agent}'s sign-in; its requests go straight to OpenAI", ag), t("{agent}'s requests go through magpie to fail over to your other accounts again", ag)]
+      : a.agent === "antigravity" ? [t("magpie moves {agent}'s own sign-in to the next account with room when one is used up, and back once it has room. Nothing on these accounts is served through magpie.", ag), t("magpie only switches {agent}'s sign-in; its requests go straight to Google", ag), t("magpie serves requests on these accounts again")]
+      : a.agent === "factory" ? [t("magpie moves {agent}'s own sign-in to the next account with room when one is used up, and back once it has room. Nothing on these accounts is served through magpie.", ag), t("magpie only switches {agent}'s sign-in; its requests go straight to Factory", ag), t("magpie serves requests on these accounts again")]
       : [t("magpie moves {agent}'s own sign-in to the next account with room when one is used up, and back once it has room. Nothing on these accounts is served through magpie.", ag), t("magpie serves no requests on these accounts"), t("magpie serves requests on these accounts again")];
     only.title = tip;
     cb.onchange = () => accountAction("provider/switchonly", { id: p.id, switchOnly: cb.checked }, cb.checked ? on : off);

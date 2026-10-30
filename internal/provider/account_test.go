@@ -86,6 +86,10 @@ func isolate(t testing.TB) {
 	oldCodexKeychain, oldCodexHere := codexKeychain, codexKeychainHere
 	codexKeychain = &fakeKeychain{}
 	resetCodexKeychain()
+	oldAntigravityKeychain, oldAntigravityHere := antigravityKeychain, antigravityKeychainHere
+	antigravityKeychain = &fakeKeychain{service: antigravityKeychainService}
+	oldFactoryKeychain, oldFactoryHere := factoryKeychain, factoryKeychainHere
+	factoryKeychain = &fakeKeychain{service: factoryKeychainService}
 	// a test's keychain answers at once: however loaded the machine, a
 	// read isn't taken for one waiting on a prompt
 	oldHold := keychainHold
@@ -111,6 +115,8 @@ func isolate(t testing.TB) {
 		claudeKeychain, claudeBase, claudeExecutable = oldKeychain, oldBase, oldExe
 		DevinExecutable = oldDevin
 		codexKeychain, codexKeychainHere = oldCodexKeychain, oldCodexHere
+		antigravityKeychain, antigravityKeychainHere = oldAntigravityKeychain, oldAntigravityHere
+		factoryKeychain, factoryKeychainHere = oldFactoryKeychain, oldFactoryHere
 		keychainHold = oldHold
 		resetCodexKeychain()
 		forgetClaudeCredential()
