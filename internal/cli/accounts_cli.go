@@ -23,14 +23,14 @@ import (
 // `magpie accounts switch|forget <agent> <email>`,
 // `magpie accounts project <gemini|antigravity> <email> <project>`,
 // `magpie accounts alias <agent> <email> [<name>|--clear]`
-// `magpie accounts switch-only <codex|claude> [on|off]`
+// `magpie accounts switch-only <codex|claude|antigravity|factory> [on|off]`
 // — the subscriptions magpie remembers, how much of each one's allowance is
 // used, and switching the agent between them.
 func accountsCmd(args []string) error {
 	if len(args) > 1 && args[1] == "discovery" {
 		return accountsDiscoveryCmd(args[2:])
 	}
-	const usage = "usage: magpie accounts [claude|codex|grok|copilot|gemini|antigravity|zed|factory|mimo|<plugin>] [--json] | magpie accounts add <claude|codex|gemini|antigravity|zed|factory|mimo|<plugin>> | magpie accounts add copilot [--host <name>.ghe.com] | magpie accounts import <codex|claude|antigravity|factory> <file>... [--yes] | magpie accounts refresh [--json] | magpie accounts checkin [--json] | magpie accounts switch|forget <claude|codex|gemini|antigravity|zed|factory|mimo|<plugin>> <email> | magpie accounts switch|forget copilot <login>[@<name>.ghe.com] [--host <name>.ghe.com] | magpie accounts project <gemini|antigravity> <email> <gcp-project-id> | magpie accounts alias <agent|<plugin>> <email> [<name>|--clear] | magpie accounts switch-only <codex|claude> [on|off]"
+	const usage = "usage: magpie accounts [claude|codex|grok|copilot|gemini|antigravity|zed|factory|mimo|<plugin>] [--json] | magpie accounts add <claude|codex|gemini|antigravity|zed|factory|mimo|<plugin>> | magpie accounts add copilot [--host <name>.ghe.com] | magpie accounts import <codex|claude|antigravity|factory> <file>... [--yes] | magpie accounts refresh [--json] | magpie accounts checkin [--json] | magpie accounts switch|forget <claude|codex|gemini|antigravity|zed|factory|mimo|<plugin>> <email> | magpie accounts switch|forget copilot <login>[@<name>.ghe.com] [--host <name>.ghe.com] | magpie accounts project <gemini|antigravity> <email> <gcp-project-id> | magpie accounts alias <agent|<plugin>> <email> [<name>|--clear] | magpie accounts switch-only <codex|claude|antigravity|factory> [on|off]"
 	agentID := func(s string) (string, error) {
 		switch strings.ToLower(s) {
 		case "claude", "cc":
@@ -204,7 +204,7 @@ func accountsCmd(args []string) error {
 		if err := provider.SwitchLogin(id, args[3]); err != nil {
 			return err
 		}
-		if _, plug := provider.PluginOf(id); plug || id == "gemini" || id == "antigravity" || id == "copilot" {
+		if _, plug := provider.PluginOf(id); (plug || id == "gemini" || id == "copilot") && id != "antigravity" && id != "factory" {
 			fmt.Println(green.Render("✓"), "magpie now uses", args[3], "for", id)
 			return nil
 		}
@@ -872,19 +872,25 @@ func accountNamed(agent, user string) (string, error) {
 	return "", fmt.Errorf("no saved %s account %q · its accounts: %q", agent, user, names)
 }
 
-// switchOnlyCmd is `magpie accounts switch-only <codex|claude> [on|off]`:
+// switchOnlyCmd is `magpie accounts switch-only <codex|claude|antigravity|factory> [on|off]`:
 // magpie only switches the agent's own sign-in to the next account with
 // room. Codex's requests are then never sent through the gateway for
 // account failover (#1907); Claude's accounts serve no request through the
-// gateway (provider.KeptToAgent, myduso on Discord). With no on or off it
-// says which it is.
+// gateway (provider.KeptToAgent, myduso on Discord); Antigravity's and Factory's
+// requests go straight to Google / Factory. With no on or off it says which it is.
 func switchOnlyCmd(args []string) error {
-	const usage = "usage: magpie accounts switch-only <codex|claude> [on|off]"
+	const usage = "usage: magpie accounts switch-only <codex|claude|antigravity|factory> [on|off]"
 	if len(args) < 1 || len(args) > 2 {
 		return fmt.Errorf("%s", usage)
 	}
 	id := strings.ToLower(args[0])
-	if id != "codex" && id != "claude" {
+	switch id {
+	case "ag", "agy":
+		id = "antigravity"
+	case "droid":
+		id = "factory"
+	}
+	if id != "codex" && id != "claude" && id != "antigravity" && id != "factory" {
 		return fmt.Errorf("%s", usage)
 	}
 	if len(args) == 1 {
@@ -894,6 +900,14 @@ func switchOnlyCmd(args []string) error {
 			fmt.Println("on · magpie only switches Codex's sign-in; its requests go straight to OpenAI")
 		case id == "codex":
 			fmt.Println("off · with more of its accounts on, Codex's requests go through magpie to fail over between them")
+		case id == "antigravity" && on:
+			fmt.Println("on · magpie only switches Antigravity's sign-in; its requests go straight to Google")
+		case id == "antigravity":
+			fmt.Println("off · magpie serves requests on the Antigravity accounts that are on")
+		case id == "factory" && on:
+			fmt.Println("on · magpie only switches Factory's sign-in; its requests go straight to Factory")
+		case id == "factory":
+			fmt.Println("off · magpie serves requests on the Factory accounts that are on")
 		case on:
 			fmt.Println("on · magpie only switches Claude Code's sign-in; it serves no requests on the Claude accounts")
 		default:
@@ -919,6 +933,14 @@ func switchOnlyCmd(args []string) error {
 		fmt.Println(green.Render("✓"), "magpie only switches Codex's sign-in to an account with room; its requests go straight to OpenAI. A Codex app or session already open stays on its account until it is opened again.")
 	case id == "codex":
 		fmt.Println(green.Render("✓"), "with more of its accounts on, Codex's requests go through magpie to fail over between them again")
+	case id == "antigravity" && on:
+		fmt.Println(green.Render("✓"), "magpie only switches Antigravity's sign-in to an account with room; its requests go straight to Google. An Antigravity session already open stays on its account until it is started again.")
+	case id == "antigravity":
+		fmt.Println(green.Render("✓"), "magpie serves requests on the Antigravity accounts that are on again")
+	case id == "factory" && on:
+		fmt.Println(green.Render("✓"), "magpie only switches Factory's sign-in to an account with room; its requests go straight to Factory. A Factory session already open stays on its account until it is started again.")
+	case id == "factory":
+		fmt.Println(green.Render("✓"), "magpie serves requests on the Factory accounts that are on again")
 	case on:
 		fmt.Println(green.Render("✓"), "magpie only switches Claude Code's sign-in to an account with room; it serves no requests on the Claude accounts. A Claude Code session already open stays on its account until it is started again.")
 	default:
