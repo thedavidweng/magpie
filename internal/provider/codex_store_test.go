@@ -19,6 +19,7 @@ import (
 // user's own (isolate puts an empty one in).
 type fakeKeychain struct {
 	mu           sync.Mutex
+	service      string            // if set, service must match
 	items        map[string][]byte // by account
 	findErr      error             // every Find answers it
 	statErr      error             // every Stat answers it
@@ -43,7 +44,9 @@ func (k *fakeKeychain) Find(service, account string) ([]byte, error) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 	k.findAccounts = append(k.findAccounts, account)
-	if service != codexKeychainService {
+	if k.service != "" && service != k.service {
+		return nil, errors.New("not expected service: " + service)
+	} else if k.service == "" && service != codexKeychainService && service != antigravityKeychainService && service != factoryKeychainService {
 		return nil, errors.New("not Codex's service: " + service)
 	}
 	if k.findErr != nil {
@@ -66,7 +69,11 @@ func (k *fakeKeychain) Stat(service, account string) (string, error) {
 		return "", k.statErr
 	}
 	b, ok := k.items[account]
-	if !ok || service != codexKeychainService {
+	validService := service == codexKeychainService || service == antigravityKeychainService || service == factoryKeychainService
+	if k.service != "" {
+		validService = service == k.service
+	}
+	if !ok || !validService {
 		return "", fs.ErrNotExist
 	}
 	sum := sha256.Sum256(b)
